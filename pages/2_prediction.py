@@ -28,7 +28,11 @@ st.set_page_config(
 )
 
 # Configuration de l'API AWS
-API_BASE_URL = os.environ.get("API_BASE_URL", "http://16.171.235.240")
+# Utilise les secrets Streamlit Cloud si disponibles, sinon l'environnement ou la valeur par défaut
+try:
+    API_BASE_URL = st.secrets["api"]["base_url"]
+except (KeyError, FileNotFoundError):
+    API_BASE_URL = os.environ.get("API_BASE_URL", "http://16.171.235.240")
 
 # Initialiser l'état d'accessibilité
 init_accessibility_state()

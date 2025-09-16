@@ -17,7 +17,12 @@ except ImportError:
 
 # Configuration
 KEYWORD_FREQ_PATH = 'keyword_frequencies.csv'
-API_BASE_URL = "http://16.171.235.240"
+# Configuration de l'API
+# Utilise les secrets Streamlit Cloud si disponibles, sinon la valeur par défaut
+try:
+    API_BASE_URL = st.secrets["api"]["base_url"]
+except (KeyError, FileNotFoundError):
+    API_BASE_URL = "http://16.171.235.240"
 
 # Importer le module d'accessibilité
 import sys
