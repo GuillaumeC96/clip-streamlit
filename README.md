@@ -50,3 +50,4 @@ Application Streamlit pour la classification de produits utilisant un modèle CL
 - **Application Streamlit** : [Streamlit Community Cloud]
 - **API AWS** : http://13.60.174.198
 - **Documentation API** : http://13.60.174.198/docs
+# Test CI/CD Streamlit
