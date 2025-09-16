@@ -8,24 +8,27 @@
 
 ## 🔧 Configuration
 
-### 1. Variables d'environnement
+### 1. Configuration des secrets
 
-Dans Streamlit Cloud, configurez ces variables :
+Streamlit Cloud utilise le fichier `.streamlit/secrets.toml` pour la configuration.
 
-```bash
-# URL de l'API AWS
-API_BASE_URL=http://16.171.235.240
-```
-
-### 2. Secrets (optionnel)
-
-Créez un fichier `.streamlit/secrets.toml` :
-
+Le fichier est déjà configuré avec :
 ```toml
 [api]
 base_url = "http://16.171.235.240"
 timeout = 30
 max_retries = 3
+```
+
+### 2. Personnalisation (optionnel)
+
+Vous pouvez modifier le fichier `.streamlit/secrets.toml` pour personnaliser :
+
+```toml
+[api]
+base_url = "http://16.171.235.240"  # URL de votre API
+timeout = 30                        # Timeout en secondes
+max_retries = 3                     # Nombre de tentatives
 
 [app]
 title = "Classification de Produits CLIP"
@@ -41,13 +44,13 @@ version = "1.0.0"
 2. Cliquez sur "New app"
 3. Sélectionnez le repository : `GuillaumeC96/clip-streamlit`
 4. Branche : `main`
-5. Fichier principal : `app.py`
+5. Fichier principal : `app.py` (détecté automatiquement)
 
 ### 2. Configuration avancée
 
-- **Python version** : 3.10
-- **Dependencies** : `requirements.txt`
-- **Environment variables** : `API_BASE_URL=http://16.171.235.240`
+- **Python version** : 3.10 (détecté automatiquement)
+- **Dependencies** : `requirements.txt` (détecté automatiquement)
+- **Secrets** : Configurés dans `.streamlit/secrets.toml`
 
 ## ✅ Vérification
 
@@ -85,7 +88,7 @@ curl -X POST http://16.171.235.240/predict \
 
 3. **Secrets non trouvés** :
    - L'application utilise des valeurs par défaut
-   - Vérifiez la configuration des secrets
+   - Vérifiez que le fichier `.streamlit/secrets.toml` est présent
 
 ## 📊 Monitoring
 
@@ -98,8 +101,8 @@ curl -X POST http://16.171.235.240/predict \
 Pour mettre à jour l'application :
 
 1. **Push sur GitHub** : Les changements se déploient automatiquement
-2. **Variables d'environnement** : Modifiez dans Streamlit Cloud
-3. **Secrets** : Mettez à jour le fichier `secrets.toml`
+2. **Secrets** : Mettez à jour le fichier `.streamlit/secrets.toml`
+3. **Push** : Les changements se déploient automatiquement
 
 ## 📞 Support
 
