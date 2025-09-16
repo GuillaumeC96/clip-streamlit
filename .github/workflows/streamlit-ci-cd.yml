@@ -1,0 +1,166 @@
+name: 🎨 Streamlit CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+    paths: 
+      - 'streamlit_cloud_repo/**'
+      - '.github/workflows/streamlit-ci-cd.yml'
+  pull_request:
+    branches: [main]
+    paths: 
+      - 'streamlit_cloud_repo/**'
+      - '.github/workflows/streamlit-ci-cd.yml'
+
+env:
+  PYTHON_VERSION: '3.10'
+  STREAMLIT_DIR: 'streamlit_cloud_repo'
+
+jobs:
+  # 🔍 Job de test et validation
+  test:
+    name: 🧪 Tests & Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        
+      - name: 🐍 Setup Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          
+      - name: 📦 Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-streamlit-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-streamlit-
+            
+      - name: 📋 Install dependencies
+        run: |
+          cd ${{ env.STREAMLIT_DIR }}
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov flake8 black streamlit
+          
+      - name: 🎨 Code formatting check (Black)
+        run: |
+          cd ${{ env.STREAMLIT_DIR }}
+          black --check --diff .
+          
+      - name: 🔍 Lint code (Flake8)
+        run: |
+          cd ${{ env.STREAMLIT_DIR }}
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+          
+      - name: 🧪 Run tests
+        run: |
+          cd ${{ env.STREAMLIT_DIR }}
+          if [ -d "tests" ]; then
+            pytest tests/ -v --cov=. --cov-report=xml
+          else
+            echo "⚠️ No tests directory found, skipping tests"
+          fi
+          
+      - name: 🎨 Streamlit syntax check
+        run: |
+          cd ${{ env.STREAMLIT_DIR }}
+          python -c "
+          import streamlit as st
+          import sys
+          import importlib.util
+          
+          # Vérifier la syntaxe des fichiers Python
+          files_to_check = ['app.py', 'accessibility_streamlit_cloud.py', 'pages/1_eda.py', 'pages/2_prediction.py']
+          
+          for file in files_to_check:
+              try:
+                  spec = importlib.util.spec_from_file_location('module', file)
+                  module = importlib.util.module_from_spec(spec)
+                  spec.loader.exec_module(module)
+                  print(f'✅ {file} syntax OK')
+              except Exception as e:
+                  print(f'❌ {file} syntax error: {e}')
+                  sys.exit(1)
+          "
+          
+      - name: 📊 Upload coverage to Codecov
+        if: success()
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./${{ env.STREAMLIT_DIR }}/coverage.xml
+          flags: streamlit
+          name: streamlit-coverage
+
+  # 🚀 Job de déploiement (push vers GitHub pour Streamlit Cloud)
+  deploy:
+    name: 🚀 Deploy to Streamlit Cloud
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        
+      - name: 🔄 Update API URL in Streamlit files
+        run: |
+          cd ${{ env.STREAMLIT_DIR }}
+          # Mettre à jour l'URL de l'API dans les fichiers Streamlit
+          sed -i "s|API_BASE_URL.*=.*|API_BASE_URL = os.environ.get(\"API_BASE_URL\", \"http://${{ secrets.AWS_INSTANCE_IP }}\")|g" pages/2_prediction.py
+          sed -i "s|API_BASE_URL.*=.*|API_BASE_URL = \"http://${{ secrets.AWS_INSTANCE_IP }}\"|g" pages/1_eda.py
+          
+      - name: 📝 Commit and push changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add ${{ env.STREAMLIT_DIR }}/pages/*.py
+          git commit -m "🤖 Auto-update API URL to ${{ secrets.AWS_INSTANCE_IP }}" || exit 0
+          git push
+          
+      - name: 🏥 Test API connectivity
+        run: |
+          echo "🧪 Testing API connectivity from Streamlit context..."
+          cd ${{ env.STREAMLIT_DIR }}
+          python -c "
+          import requests
+          import os
+          
+          api_url = 'http://${{ secrets.AWS_INSTANCE_IP }}'
+          try:
+              response = requests.get(f'{api_url}/health', timeout=10)
+              if response.status_code == 200:
+                  print('✅ API is accessible from Streamlit context')
+                  print(f'Response: {response.json()}')
+              else:
+                  print(f'❌ API returned status code: {response.status_code}')
+                  exit(1)
+          except Exception as e:
+              print(f'❌ API connectivity test failed: {e}')
+              exit(1)
+          "
+
+  # 📊 Job de notification
+  notify:
+    name: 📢 Notify deployment status
+    needs: [test, deploy]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: 📢 Notify success
+        if: needs.deploy.result == 'success'
+        run: |
+          echo "🎉 Streamlit app updated successfully!"
+          echo "🌐 Streamlit Cloud will automatically redeploy"
+          echo "🔗 API URL updated to: http://${{ secrets.AWS_INSTANCE_IP }}"
+          
+      - name: 📢 Notify failure
+        if: needs.deploy.result == 'failure'
+        run: |
+          echo "❌ Streamlit deployment failed!"
+          echo "Please check the logs and fix the issues."
