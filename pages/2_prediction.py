@@ -32,7 +32,7 @@ st.set_page_config(
 try:
     API_BASE_URL = st.secrets["api"]["base_url"]
 except (KeyError, FileNotFoundError):
-    API_BASE_URL = os.environ.get("API_BASE_URL", "http://16.171.235.240")
+        API_BASE_URL = os.environ.get("API_BASE_URL", "http://13.60.70.230")
 
 # Initialiser l'état d'accessibilité
 init_accessibility_state()
@@ -51,6 +51,9 @@ render_accessibility_sidebar()
 
 # Appliquer les styles d'accessibilité
 apply_accessibility_styles()
+
+# Information sur l'optimisation des images
+st.info("🚀 **Optimisation automatique** : Les images sont automatiquement redimensionnées à 224x224 pixels (taille d'entrée du modèle CLIP) pour des performances optimales.")
 
 st.markdown("---")
 
@@ -121,15 +124,47 @@ def load_default_test_product():
         st.error(f"❌ Erreur lors du chargement du produit de test: {str(e)}")
         return None
 
+def resize_image_for_model(image, target_size=(224, 224)):
+    """
+    Redimensionne l'image à la taille exacte attendue par le modèle CLIP (224x224)
+    
+    Args:
+        image: Image PIL
+        target_size: Tuple (width, height) - taille cible (224x224 par défaut)
+    
+    Returns:
+        Image PIL redimensionnée
+    """
+    # Redimensionner l'image à la taille exacte du modèle
+    resized_image = image.resize(target_size, Image.LANCZOS)
+    return resized_image
+
 def call_prediction_api(image_file, text_description):
-    """Appelle l'API FastAPI pour la prédiction."""
+    """Appelle l'API FastAPI pour la prédiction avec image redimensionnée."""
     try:
-        # Pour les objets Streamlit UploadedFile, utiliser getvalue()
-        image_bytes = image_file.getvalue()
+        # Charger l'image
+        if hasattr(image_file, 'getvalue'):
+            # Pour les objets Streamlit UploadedFile
+            image = Image.open(io.BytesIO(image_file.getvalue()))
+        else:
+            # Pour les fichiers locaux
+            image = Image.open(image_file)
         
-        files = {'image': (image_file.name, image_bytes, image_file.type)}
+        # Redimensionner l'image à 224x224 (taille d'entrée du modèle CLIP)
+        resized_image = resize_image_for_model(image, target_size=(224, 224))
+        
+        # Convertir l'image redimensionnée en bytes
+        img_byte_arr = io.BytesIO()
+        resized_image.save(img_byte_arr, format='JPEG', quality=95, optimize=True)
+        img_byte_arr.seek(0)
+        image_bytes = img_byte_arr.getvalue()
+        
+        # Préparer les données pour l'API
+        filename = getattr(image_file, 'name', 'resized_image.jpg')
+        files = {'image': (filename, image_bytes, 'image/jpeg')}
         data = {'text_description': text_description}
         
+        # Appel à l'API
         response = requests.post(f"{API_BASE_URL}/predict", files=files, data=data, timeout=30)
         response.raise_for_status()  # Lève une exception pour les codes d'état HTTP d'erreur
         return response.json()
@@ -163,13 +198,24 @@ if uploaded_file is not None:
     image = Image.open(uploaded_file)
     st.image(image, caption="Image uploadée", width=400)
     
-    # Informations sur l'image
-    st.info(f"📏 Dimensions : {image.size[0]} x {image.size[1]} pixels")
+    # Informations sur l'image originale
+    st.info(f"📏 Dimensions originales : {image.size[0]} x {image.size[1]} pixels")
+    
+    # Afficher l'image redimensionnée pour le modèle
+    resized_image = resize_image_for_model(image, target_size=(224, 224))
+    st.image(resized_image, caption="Image redimensionnée pour le modèle (224x224)", width=224)
+    st.success(f"✅ Image optimisée pour le modèle CLIP : 224 x 224 pixels")
+    
 elif default_product and st.session_state.get('test_prediction_launched', False):
     # Afficher l'image du produit de test
     image = Image.open(default_product['image_path'])
     st.image(image, caption="Produit de test", width=400)
-    st.info(f"📏 Dimensions : {image.size[0]} x {image.size[1]} pixels")
+    st.info(f"📏 Dimensions originales : {image.size[0]} x {image.size[1]} pixels")
+    
+    # Afficher l'image redimensionnée pour le modèle
+    resized_image = resize_image_for_model(image, target_size=(224, 224))
+    st.image(resized_image, caption="Image redimensionnée pour le modèle (224x224)", width=224)
+    st.success(f"✅ Image optimisée pour le modèle CLIP : 224 x 224 pixels")
 
 # Informations du produit
 st.subheader("📝 Informations du produit")
